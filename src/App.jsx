@@ -19,6 +19,8 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [dividendPrompt, setDividendPrompt] = useState(null)
   const [dividendInput, setDividendInput] = useState("")
+  const [editingDividend, setEditingDividend] = useState(null)
+  const [editDividendInput, setEditDividendInput] = useState("")
 
   useEffect(() => { fetchHoldings() }, [])
   useEffect(() => { if (holdings.length > 0) fetchMarketData() }, [holdings])
@@ -75,6 +77,14 @@ export default function App() {
     setDividendInput("")
   }
 
+  async function saveEditDividend() {
+    const val = parseFloat(editDividendInput) || 0
+    await supabase.from("holdings").update({ annual_dividend: val }).eq("id", editingDividend.id)
+    setHoldings(prev => prev.map(h => h.id === editingDividend.id ? { ...h, annual_dividend: val } : h))
+    setEditingDividend(null)
+    setEditDividendInput("")
+  }
+
   async function removeHolding(id) {
     await supabase.from("holdings").delete().eq("id", id)
     setHoldings(holdings.filter(h => h.id !== id))
@@ -128,6 +138,34 @@ export default function App() {
         </div>
       )}
 
+      {editingDividend && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div style={{ background: "#1a1a1a", borderRadius: "16px", padding: "2rem", width: "360px", border: "0.5px solid #333" }}>
+            <p style={{ fontSize: "16px", fontWeight: "500", margin: "0 0 6px" }}>Edit {editingDividend.ticker} dividend</p>
+            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 1.5rem" }}>Update the annual dividend per share.</p>
+            <input
+              type="number"
+              placeholder="e.g. 1.00"
+              value={editDividendInput}
+              onChange={e => setEditDividendInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && saveEditDividend()}
+              autoFocus
+              style={{ width: "100%", background: "#2a2a2a", border: "0.5px solid #444", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none", boxSizing: "border-box", marginBottom: "1rem" }}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={saveEditDividend}
+                style={{ flex: 1, background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "14px", cursor: "pointer" }}>
+                Save
+              </button>
+              <button onClick={() => { setEditingDividend(null); setEditDividendInput("") }}
+                style={{ flex: 1, background: "transparent", border: "0.5px solid #444", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "14px", cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 style={{ fontSize: "24px", fontWeight: "600", marginBottom: "2rem" }}>Portfolio Tracker</h1>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
@@ -170,7 +208,7 @@ export default function App() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
           <thead>
             <tr style={{ color: "#888", textAlign: "left" }}>
-              {["Ticker", "Shares", "Cost Basis", "Current Price", "Current Value", "Gain/Loss", "Gain/Loss %", "Annual Dividends", "Sector", ""].map((h, i) => (
+              {["Ticker", "Shares", "Cost Basis", "Current Price", "Current Value", "Gain/Loss", "Gain/Loss %", "Annual Div/Share", "Annual Div Total", "Sector", ""].map((h, i) => (
                 <th key={i} style={{ padding: "8px 12px", borderBottom: "0.5px solid #333" }}>{h}</th>
               ))}
             </tr>
@@ -191,6 +229,15 @@ export default function App() {
                   <td style={{ padding: "10px 12px" }}>${value.toFixed(2)}</td>
                   <td style={{ padding: "10px 12px", color: gain >= 0 ? "#10b981" : "#ef4444" }}>{gain >= 0 ? "+" : ""}${gain.toFixed(2)}</td>
                   <td style={{ padding: "10px 12px", color: gainPct >= 0 ? "#10b981" : "#ef4444" }}>{gainPct >= 0 ? "+" : ""}{gainPct.toFixed(2)}%</td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <span
+                      onClick={() => { setEditingDividend(h); setEditDividendInput(h.annual_dividend || "") }}
+                      style={{ cursor: "pointer", borderBottom: "1px dashed #555", paddingBottom: "1px" }}
+                      title="Click to edit"
+                    >
+                      ${(h.annual_dividend || 0).toFixed(2)}
+                    </span>
+                  </td>
                   <td style={{ padding: "10px 12px" }}>${annualDiv.toFixed(2)}</td>
                   <td style={{ padding: "10px 12px", color: "#888" }}>{marketData[h.ticker]?.sector || "..."}</td>
                   <td style={{ padding: "10px 12px" }}>
@@ -200,7 +247,7 @@ export default function App() {
               )
             })}
             {holdings.length === 0 && (
-              <tr><td colSpan={10} style={{ padding: "2rem", textAlign: "center", color: "#555" }}>No holdings yet — add your first stock above</td></tr>
+              <tr><td colSpan={11} style={{ padding: "2rem", textAlign: "center", color: "#555" }}>No holdings yet — add your first stock above</td></tr>
             )}
           </tbody>
         </table>
