@@ -9,6 +9,7 @@ const supabase = createClient(
 
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY
 const COLORS = ["#6366f1","#22d3ee","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6"]
+const delay = ms => new Promise(r => setTimeout(r, ms))
 
 export default function App() {
   const [holdings, setHoldings] = useState([])
@@ -23,16 +24,20 @@ export default function App() {
   const [editDividendInput, setEditDividendInput] = useState("")
 
   useEffect(() => { fetchHoldings() }, [])
-  useEffect(() => { if (holdings.length > 0) fetchMarketData() }, [holdings])
 
   async function fetchHoldings() {
     const { data } = await supabase.from("holdings").select("*")
-    if (data) setHoldings(data)
+    if (data) {
+      setHoldings(data)
+      fetchMarketData(data, {})
+    }
   }
 
-  async function fetchMarketData() {
-    const data = {}
-    await Promise.all(holdings.map(async (h) => {
+  async function fetchMarketData(holdingsList, existingData) {
+    const data = { ...existingData }
+    const toFetch = holdingsList.filter(h => !data[h.ticker])
+    for (let i = 0; i < toFetch.length; i++) {
+      const h = toFetch[i]
       try {
         const [quoteRes, profileRes] = await Promise.all([
           fetch(`https://finnhub.io/api/v1/quote?symbol=${h.ticker}&token=${FINNHUB_KEY}`),
@@ -44,11 +49,12 @@ export default function App() {
           price: quote.c || 0,
           sector: profile.finnhubIndustry || "Unknown",
         }
+        setMarketData({ ...data })
       } catch {
         data[h.ticker] = { price: 0, sector: "Unknown" }
       }
-    }))
-    setMarketData(data)
+      if (i < toFetch.length - 1) await delay(200)
+    }
   }
 
   async function addHolding() {
@@ -62,8 +68,10 @@ export default function App() {
       annual_dividend: 0
     }]).select()
     if (data) {
-      setHoldings(prev => [...prev, ...data])
+      const newHoldings = [...holdings, ...data]
+      setHoldings(newHoldings)
       setDividendPrompt(data[0])
+      fetchMarketData(newHoldings, marketData)
     }
     setTicker(""); setShares(""); setCostBasis("")
     setLoading(false)
