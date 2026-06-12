@@ -22,6 +22,7 @@ export default function App() {
   const [dividendInput, setDividendInput] = useState("")
   const [editingDividend, setEditingDividend] = useState(null)
   const [editDividendInput, setEditDividendInput] = useState("")
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" })
 
   useEffect(() => { fetchHoldings() }, [])
 
@@ -61,17 +62,32 @@ export default function App() {
     if (!ticker || !shares || !costBasis) return
     setLoading(true)
     const sym = ticker.toUpperCase()
-    const { data } = await supabase.from("holdings").insert([{
-      ticker: sym,
-      shares: parseFloat(shares),
-      cost_basis: parseFloat(costBasis),
-      annual_dividend: 0
-    }]).select()
-    if (data) {
-      const newHoldings = [...holdings, ...data]
-      setHoldings(newHoldings)
-      setDividendPrompt(data[0])
-      fetchMarketData(newHoldings, marketData)
+    const existing = holdings.find(h => h.ticker === sym)
+
+    if (existing) {
+      const newShares = existing.shares + parseFloat(shares)
+      const newCostBasis = ((existing.cost_basis * existing.shares) + (parseFloat(costBasis) * parseFloat(shares))) / newShares
+      const { data } = await supabase.from("holdings")
+        .update({ shares: newShares, cost_basis: parseFloat(newCostBasis.toFixed(4)) })
+        .eq("id", existing.id)
+        .select()
+      if (data) {
+        const newHoldings = holdings.map(h => h.id === existing.id ? data[0] : h)
+        setHoldings(newHoldings)
+      }
+    } else {
+      const { data } = await supabase.from("holdings").insert([{
+        ticker: sym,
+        shares: parseFloat(shares),
+        cost_basis: parseFloat(costBasis),
+        annual_dividend: 0
+      }]).select()
+      if (data) {
+        const newHoldings = [...holdings, ...data]
+        setHoldings(newHoldings)
+        setDividendPrompt(data[0])
+        fetchMarketData(newHoldings, marketData)
+      }
     }
     setTicker(""); setShares(""); setCostBasis("")
     setLoading(false)
@@ -98,6 +114,38 @@ export default function App() {
     setHoldings(holdings.filter(h => h.id !== id))
   }
 
+  function handleSort(key) {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+    }))
+  }
+
+  function getSortedHoldings() {
+    if (!sortConfig.key) return holdings
+    return [...holdings].sort((a, b) => {
+      let aVal, bVal
+      const md_a = marketData[a.ticker] || {}
+      const md_b = marketData[b.ticker] || {}
+      switch (sortConfig.key) {
+        case "ticker": aVal = a.ticker; bVal = b.ticker; break
+        case "shares": aVal = a.shares; bVal = b.shares; break
+        case "cost_basis": aVal = a.cost_basis; bVal = b.cost_basis; break
+        case "price": aVal = md_a.price || 0; bVal = md_b.price || 0; break
+        case "value": aVal = (md_a.price || 0) * a.shares; bVal = (md_b.price || 0) * b.shares; break
+        case "gain": aVal = ((md_a.price || 0) * a.shares) - (a.cost_basis * a.shares); bVal = ((md_b.price || 0) * b.shares) - (b.cost_basis * b.shares); break
+        case "gainpct": aVal = a.cost_basis > 0 ? (((md_a.price || 0) - a.cost_basis) / a.cost_basis) * 100 : 0; bVal = b.cost_basis > 0 ? (((md_b.price || 0) - b.cost_basis) / b.cost_basis) * 100 : 0; break
+        case "divshare": aVal = a.annual_dividend || 0; bVal = b.annual_dividend || 0; break
+        case "divtotal": aVal = (a.annual_dividend || 0) * a.shares; bVal = (b.annual_dividend || 0) * b.shares; break
+        case "sector": aVal = md_a.sector || ""; bVal = md_b.sector || ""; break
+        default: return 0
+      }
+      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1
+      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1
+      return 0
+    })
+  }
+
   const totalValue = holdings.reduce((sum, h) => sum + (marketData[h.ticker]?.price || 0) * h.shares, 0)
   const totalCost = holdings.reduce((sum, h) => sum + h.cost_basis * h.shares, 0)
   const totalGain = totalValue - totalCost
@@ -114,6 +162,22 @@ export default function App() {
     }
     return acc
   }, [])
+
+  const columns = [
+    { label: "Ticker", key: "ticker" },
+    { label: "Shares", key: "shares" },
+    { label: "Cost Basis", key: "cost_basis" },
+    { label: "Current Price", key: "price" },
+    { label: "Current Value", key: "value" },
+    { label: "Gain/Loss", key: "gain" },
+    { label: "Gain/Loss %", key: "gainpct" },
+    { label: "Annual Div/Share", key: "divshare" },
+    { label: "Annual Div Total", key: "divtotal" },
+    { label: "Sector", key: "sector" },
+    { label: "", key: null }
+  ]
+
+  const sortedHoldings = getSortedHoldings()
 
   return (
     <div style={{ minHeight: "100vh", background: "#0f0f0f", color: "#f1f1f1", fontFamily: "sans-serif", padding: "2rem" }}>
@@ -216,13 +280,18 @@ export default function App() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
           <thead>
             <tr style={{ color: "#888", textAlign: "left" }}>
-              {["Ticker", "Shares", "Cost Basis", "Current Price", "Current Value", "Gain/Loss", "Gain/Loss %", "Annual Div/Share", "Annual Div Total", "Sector", ""].map((h, i) => (
-                <th key={i} style={{ padding: "8px 12px", borderBottom: "0.5px solid #333" }}>{h}</th>
+              {columns.map((col, i) => (
+                <th key={i}
+                  onClick={() => col.key && handleSort(col.key)}
+                  style={{ padding: "8px 12px", borderBottom: "0.5px solid #333", cursor: col.key ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}>
+                  {col.label}
+                  {col.key && sortConfig.key === col.key ? (sortConfig.direction === "asc" ? " ↑" : " ↓") : col.key ? " ↕" : ""}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {holdings.map(h => {
+            {sortedHoldings.map(h => {
               const price = marketData[h.ticker]?.price || 0
               const value = price * h.shares
               const gain = value - h.cost_basis * h.shares
