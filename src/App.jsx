@@ -8,7 +8,7 @@ const supabase = createClient(
 )
 
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY
-const COLORS = ["#6366f1","#22d3ee","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6"]
+const COLORS = ["#6366f1","#22d3ee","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316","#06b6d4","#a855f7","#84cc16"]
 const delay = ms => new Promise(r => setTimeout(r, ms))
 
 export default function App() {
@@ -72,8 +72,7 @@ export default function App() {
         .eq("id", existing.id)
         .select()
       if (data) {
-        const newHoldings = holdings.map(h => h.id === existing.id ? data[0] : h)
-        setHoldings(newHoldings)
+        setHoldings(holdings.map(h => h.id === existing.id ? data[0] : h))
       }
     } else {
       const { data } = await supabase.from("holdings").insert([{
@@ -171,92 +170,87 @@ export default function App() {
     { label: "Current Value", key: "value" },
     { label: "Gain/Loss", key: "gain" },
     { label: "Gain/Loss %", key: "gainpct" },
-    { label: "Annual Div/Share", key: "divshare" },
-    { label: "Annual Div Total", key: "divtotal" },
+    { label: "Div/Share", key: "divshare" },
+    { label: "Div Total", key: "divtotal" },
     { label: "Sector", key: "sector" },
     { label: "", key: null }
   ]
 
   const sortedHoldings = getSortedHoldings()
 
+  const modal = (content) => (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "1rem" }}>
+      <div style={{ background: "#1a1a1a", borderRadius: "16px", padding: "2rem", width: "100%", maxWidth: "360px", border: "0.5px solid #333" }}>
+        {content}
+      </div>
+    </div>
+  )
+
   return (
-    <div style={{ minHeight: "100vh", background: "#0f0f0f", color: "#f1f1f1", fontFamily: "sans-serif", padding: "2rem" }}>
+    <div style={{ minHeight: "100vh", background: "#0f0f0f", color: "#f1f1f1", fontFamily: "sans-serif", padding: "1rem" }}>
 
-      {dividendPrompt && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-          <div style={{ background: "#1a1a1a", borderRadius: "16px", padding: "2rem", width: "360px", border: "0.5px solid #333" }}>
-            <p style={{ fontSize: "16px", fontWeight: "500", margin: "0 0 6px" }}>{dividendPrompt.ticker} added</p>
-            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 1.5rem" }}>Enter the annual dividend per share, or skip if it pays no dividend.</p>
-            <input
-              type="number"
-              placeholder="e.g. 1.00"
-              value={dividendInput}
-              onChange={e => setDividendInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && saveDividend()}
-              autoFocus
-              style={{ width: "100%", background: "#2a2a2a", border: "0.5px solid #444", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none", boxSizing: "border-box", marginBottom: "1rem" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={saveDividend}
-                style={{ flex: 1, background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "14px", cursor: "pointer" }}>
-                Save
-              </button>
-              <button onClick={() => { setDividendPrompt(null); setDividendInput("") }}
-                style={{ flex: 1, background: "transparent", border: "0.5px solid #444", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "14px", cursor: "pointer" }}>
-                Skip
-              </button>
-            </div>
-          </div>
+      <style>{`
+        .cards-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+        .add-form { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; }
+        .add-form input { flex: 1; min-width: 120px; }
+        .add-form button { white-space: nowrap; }
+        @media (max-width: 640px) {
+          .cards-grid { grid-template-columns: repeat(2, 1fr); }
+          .add-form { flex-direction: column; }
+          .add-form input { width: 100%; min-width: unset; flex: unset; box-sizing: border-box; }
+          .add-form button { width: 100%; }
+        }
+      `}</style>
+
+      {dividendPrompt && modal(<>
+        <p style={{ fontSize: "16px", fontWeight: "500", margin: "0 0 6px" }}>{dividendPrompt.ticker} added</p>
+        <p style={{ fontSize: "13px", color: "#888", margin: "0 0 1.5rem" }}>Enter the annual dividend per share, or skip if it pays no dividend.</p>
+        <input
+          type="number" placeholder="e.g. 1.00" value={dividendInput}
+          onChange={e => setDividendInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && saveDividend()} autoFocus
+          style={{ width: "100%", background: "#2a2a2a", border: "0.5px solid #444", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none", boxSizing: "border-box", marginBottom: "1rem" }}
+        />
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={saveDividend} style={{ flex: 1, background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "14px", cursor: "pointer" }}>Save</button>
+          <button onClick={() => { setDividendPrompt(null); setDividendInput("") }} style={{ flex: 1, background: "transparent", border: "0.5px solid #444", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "14px", cursor: "pointer" }}>Skip</button>
         </div>
-      )}
+      </>)}
 
-      {editingDividend && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-          <div style={{ background: "#1a1a1a", borderRadius: "16px", padding: "2rem", width: "360px", border: "0.5px solid #333" }}>
-            <p style={{ fontSize: "16px", fontWeight: "500", margin: "0 0 6px" }}>Edit {editingDividend.ticker} dividend</p>
-            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 1.5rem" }}>Update the annual dividend per share.</p>
-            <input
-              type="number"
-              placeholder="e.g. 1.00"
-              value={editDividendInput}
-              onChange={e => setEditDividendInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && saveEditDividend()}
-              autoFocus
-              style={{ width: "100%", background: "#2a2a2a", border: "0.5px solid #444", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none", boxSizing: "border-box", marginBottom: "1rem" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={saveEditDividend}
-                style={{ flex: 1, background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "14px", cursor: "pointer" }}>
-                Save
-              </button>
-              <button onClick={() => { setEditingDividend(null); setEditDividendInput("") }}
-                style={{ flex: 1, background: "transparent", border: "0.5px solid #444", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "14px", cursor: "pointer" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
+      {editingDividend && modal(<>
+        <p style={{ fontSize: "16px", fontWeight: "500", margin: "0 0 6px" }}>Edit {editingDividend.ticker} dividend</p>
+        <p style={{ fontSize: "13px", color: "#888", margin: "0 0 1.5rem" }}>Update the annual dividend per share.</p>
+        <input
+          type="number" placeholder="e.g. 1.00" value={editDividendInput}
+          onChange={e => setEditDividendInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && saveEditDividend()} autoFocus
+          style={{ width: "100%", background: "#2a2a2a", border: "0.5px solid #444", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none", boxSizing: "border-box", marginBottom: "1rem" }}
+        />
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={saveEditDividend} style={{ flex: 1, background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "14px", cursor: "pointer" }}>Save</button>
+          <button onClick={() => { setEditingDividend(null); setEditDividendInput("") }} style={{ flex: 1, background: "transparent", border: "0.5px solid #444", borderRadius: "8px", padding: "10px", color: "#888", fontSize: "14px", cursor: "pointer" }}>Cancel</button>
         </div>
-      )}
+      </>)}
 
-      <h1 style={{ fontSize: "24px", fontWeight: "600", marginBottom: "2rem" }}>Portfolio Tracker</h1>
+      <h1 style={{ fontSize: "22px", fontWeight: "600", marginBottom: "1.5rem" }}>Portfolio Tracker</h1>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+      <div className="cards-grid">
         {[
           { label: "Portfolio Value", value: `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
           { label: "Total Cost", value: `$${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
           { label: "Total Gain/Loss", value: `${totalGain >= 0 ? "+" : ""}$${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${totalGainPct.toFixed(2)}%)`, color: totalGain >= 0 ? "#10b981" : "#ef4444" },
           { label: "Annual Dividends", value: `$${totalDividends.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
         ].map((card, i) => (
-          <div key={i} style={{ background: "#1a1a1a", borderRadius: "12px", padding: "1.25rem" }}>
-            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 6px" }}>{card.label}</p>
-            <p style={{ fontSize: "22px", fontWeight: "600", margin: 0, color: card.color || "#f1f1f1" }}>{card.value}</p>
+          <div key={i} style={{ background: "#1a1a1a", borderRadius: "12px", padding: "1rem" }}>
+            <p style={{ fontSize: "12px", color: "#888", margin: "0 0 6px" }}>{card.label}</p>
+            <p style={{ fontSize: "18px", fontWeight: "600", margin: 0, color: card.color || "#f1f1f1" }}>{card.value}</p>
           </div>
         ))}
       </div>
 
       <div style={{ background: "#1a1a1a", borderRadius: "12px", padding: "1.25rem", marginBottom: "2rem" }}>
         <h2 style={{ fontSize: "16px", fontWeight: "500", marginBottom: "1rem" }}>Add Position</h2>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end" }}>
+        <div className="add-form">
           {[
             { placeholder: "Ticker (e.g. AAPL)", value: ticker, setter: setTicker },
             { placeholder: "Shares", value: shares, setter: setShares, type: "number" },
@@ -265,11 +259,11 @@ export default function App() {
             <input key={i} type={input.type || "text"} placeholder={input.placeholder} value={input.value}
               onChange={e => input.setter(e.target.value)}
               onKeyDown={e => e.key === "Enter" && addHolding()}
-              style={{ flex: 1, background: "#2a2a2a", border: "0.5px solid #333", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none" }}
+              style={{ background: "#2a2a2a", border: "0.5px solid #333", borderRadius: "8px", padding: "10px 14px", color: "#f1f1f1", fontSize: "14px", outline: "none" }}
             />
           ))}
           <button onClick={addHolding} disabled={loading}
-            style={{ background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px 20px", color: "#fff", fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap" }}>
+            style={{ background: "#6366f1", border: "none", borderRadius: "8px", padding: "10px 20px", color: "#fff", fontSize: "14px", cursor: "pointer" }}>
             {loading ? "Adding..." : "Add Stock"}
           </button>
         </div>
@@ -277,15 +271,14 @@ export default function App() {
 
       <div style={{ background: "#1a1a1a", borderRadius: "12px", padding: "1.25rem", marginBottom: "2rem", overflowX: "auto" }}>
         <h2 style={{ fontSize: "16px", fontWeight: "500", marginBottom: "1rem" }}>Holdings</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", minWidth: "800px" }}>
           <thead>
             <tr style={{ color: "#888", textAlign: "left" }}>
               {columns.map((col, i) => (
                 <th key={i}
                   onClick={() => col.key && handleSort(col.key)}
                   style={{ padding: "8px 12px", borderBottom: "0.5px solid #333", cursor: col.key ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}>
-                  {col.label}
-                  {col.key && sortConfig.key === col.key ? (sortConfig.direction === "asc" ? " ↑" : " ↓") : col.key ? " ↕" : ""}
+                  {col.label}{col.key && sortConfig.key === col.key ? (sortConfig.direction === "asc" ? " ↑" : " ↓") : col.key ? " ↕" : ""}
                 </th>
               ))}
             </tr>
@@ -307,11 +300,8 @@ export default function App() {
                   <td style={{ padding: "10px 12px", color: gain >= 0 ? "#10b981" : "#ef4444" }}>{gain >= 0 ? "+" : ""}${gain.toFixed(2)}</td>
                   <td style={{ padding: "10px 12px", color: gainPct >= 0 ? "#10b981" : "#ef4444" }}>{gainPct >= 0 ? "+" : ""}{gainPct.toFixed(2)}%</td>
                   <td style={{ padding: "10px 12px" }}>
-                    <span
-                      onClick={() => { setEditingDividend(h); setEditDividendInput(h.annual_dividend || "") }}
-                      style={{ cursor: "pointer", borderBottom: "1px dashed #555", paddingBottom: "1px" }}
-                      title="Click to edit"
-                    >
+                    <span onClick={() => { setEditingDividend(h); setEditDividendInput(h.annual_dividend || "") }}
+                      style={{ cursor: "pointer", borderBottom: "1px dashed #555", paddingBottom: "1px" }} title="Click to edit">
                       ${(h.annual_dividend || 0).toFixed(2)}
                     </span>
                   </td>
@@ -333,14 +323,36 @@ export default function App() {
       {sectorData.length > 0 && (
         <div style={{ background: "#1a1a1a", borderRadius: "12px", padding: "1.25rem" }}>
           <h2 style={{ fontSize: "16px", fontWeight: "500", marginBottom: "1rem" }}>Sector Allocation</h2>
-          <div style={{ width: "100%", height: "300px" }}>
+          <div style={{ width: "100%", height: "400px" }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={sectorData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                <Pie
+                  data={sectorData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="45%"
+                  outerRadius="60%"
+                  labelLine={false}
+                  label={false}
+                >
                   {sectorData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
-                <Tooltip formatter={(val) => `$${val.toLocaleString()}`} contentStyle={{ background: "#1a1a1a", border: "0.5px solid #333" }} />
-                <Legend />
+                <Tooltip
+                  formatter={(val, name) => [`$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
+                  contentStyle={{ background: "#1a1a1a", border: "0.5px solid #333", borderRadius: "8px", fontSize: "13px" }}
+                />
+                <Legend
+                  layout="vertical"
+                  align="right"
+                  verticalAlign="middle"
+                  formatter={(value, entry) => {
+                    const total = sectorData.reduce((s, d) => s + d.value, 0)
+                    const pct = total > 0 ? ((entry.payload.value / total) * 100).toFixed(1) : 0
+                    return `${value} (${pct}%)`
+                  }}
+                  wrapperStyle={{ fontSize: "12px", paddingLeft: "16px" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
